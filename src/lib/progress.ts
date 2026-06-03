@@ -1,7 +1,6 @@
+import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { newCard, scheduleReview, isDue, type Card } from './fsrs';
 import type { CardData } from './types';
-
-const KEY = 'greek_progress_v1';
 
 interface Serialized {
 	due: string;
@@ -15,20 +14,29 @@ interface Serialized {
 	last_review?: string;
 }
 
-type ProgressMap = Record<string, Serialized>;
-
-function load(): ProgressMap {
-	try {
-		return JSON.parse(localStorage.getItem(KEY) ?? '{}');
-	} catch {
-		return {};
-	}
+interface ProgressDB extends DBSchema {
+	progress: { key: string; value: Serialized };
 }
 
-function save(map: ProgressMap): void {
-	try {
-		localStorage.setItem(KEY, JSON.stringify(map));
-	} catch { /* quota exceeded */ }
+let dbPromise: ReturnType<typeof openDB<ProgressDB>> | null = null;
+
+function getDB() {
+	if (!dbPromise) {
+		dbPromise = openDB<ProgressDB>('greek-cards', 1, {
+			upgrade(db) {
+				db.createObjectStore('progress');
+			}
+		});
+	}
+	return dbPromise;
+}
+
+async function loadAll(db: IDBPDatabase<ProgressDB>): Promise<Map<string, Card>> {
+	const keys = await db.getAllKeys('progress');
+	const values = await db.getAll('progress');
+	const map = new Map<string, Card>();
+	keys.forEach((k, i) => map.set(k, deser(values[i])));
+	return map;
 }
 
 function ser(card: Card): Serialized {
@@ -59,26 +67,19 @@ function deser(d: Serialized): Card {
 	} as Card;
 }
 
-export function getCardState(id: string): Card {
-	const map = load();
-	return map[id] ? deser(map[id]) : newCard();
-}
-
-export function recordReview(id: string, remembered: boolean): Card {
-	const map = load();
-	const card = map[id] ? deser(map[id]) : newCard();
+export async function recordReview(id: string, remembered: boolean): Promise<Card> {
+	const db = await getDB();
+	const stored = await db.get('progress', id);
+	const card = stored ? deser(stored) : newCard();
 	const updated = scheduleReview(card, remembered);
-	map[id] = ser(updated);
-	save(map);
+	await db.put('progress', ser(updated), id);
 	return updated;
 }
 
-export function getDueCards(allCards: CardData[]): CardData[] {
-	const map = load();
-	return allCards.filter((c) => {
-		const s = map[c.id] ? deser(map[c.id]) : newCard();
-		return isDue(s);
-	});
+export async function getDueCards(allCards: CardData[]): Promise<CardData[]> {
+	const db = await getDB();
+	const map = await loadAll(db);
+	return allCards.filter((c) => isDue(map.get(c.id) ?? newCard()));
 }
 
 export interface Stats {
@@ -89,31 +90,42 @@ export interface Stats {
 	reviewedToday: number;
 }
 
-export function getStats(allCards: CardData[]): Stats {
-	const map = load();
+export async function getStats(allCards: CardData[]): Promise<Stats> {
+	const db = await getDB();
+	const map = await loadAll(db);
 	const todayStart = new Date();
 	todayStart.setHours(0, 0, 0, 0);
 
 	let newCards = 0, due = 0, learned = 0, reviewedToday = 0;
 
 	for (const card of allCards) {
-		const d = map[card.id];
-		if (!d) { newCards++; continue; }
-		const s = deser(d);
+		const s = map.get(card.id);
+		if (!s) { newCards++; continue; }
 		if (s.reps === 0) newCards++;
 		else if (isDue(s)) due++;
 		else learned++;
-		if (s.last_review && new Date(s.last_review) >= todayStart) reviewedToday++;
+		if (s.last_review && s.last_review >= todayStart) reviewedToday++;
 	}
 
 	return { total: allCards.length, newCards, due, learned, reviewedToday };
 }
 
-export function exportData(): string {
-	return localStorage.getItem(KEY) ?? '{}';
+export async function exportData(): Promise<string> {
+	const db = await getDB();
+	const keys = await db.getAllKeys('progress');
+	const values = await db.getAll('progress');
+	const map: Record<string, Serialized> = {};
+	keys.forEach((k, i) => { map[k] = values[i]; });
+	return JSON.stringify(map);
 }
 
-export function importData(raw: string): void {
-	JSON.parse(raw); // validate before writing
-	localStorage.setItem(KEY, raw);
+export async function importData(raw: string): Promise<void> {
+	const map: Record<string, Serialized> = JSON.parse(raw);
+	const db = await getDB();
+	const tx = db.transaction('progress', 'readwrite');
+	await tx.store.clear();
+	for (const [id, value] of Object.entries(map)) {
+		await tx.store.put(value, id);
+	}
+	await tx.done;
 }

@@ -8,8 +8,6 @@ export interface CardData {
 }
 
 export interface CardsDataFile {
-	version: number;
-	updated: string;
 	cards: CardData[];
 }
 

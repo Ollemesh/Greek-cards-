@@ -21,7 +21,7 @@
 	onMount(async () => {
 		try {
 			allCards = await loadCards();
-			stats = getStats(allCards);
+			stats = await getStats(allCards);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Ошибка загрузки';
 		} finally {
@@ -29,20 +29,20 @@
 		}
 	});
 
-	function startSession() {
-		const due = getDueCards(allCards);
+	async function startSession() {
+		const due = await getDueCards(allCards);
 		sessionCards = shuffled(due).slice(0, MAX_SESSION);
 		results = [];
 		screen = 'study';
 	}
 
-	function onSwipe(dir: SwipeDirection, card: CardData) {
-		recordReview(card.id, dir === 'left');
+	async function onSwipe(dir: SwipeDirection, card: CardData) {
+		await recordReview(card.id, dir === 'left');
 		results = [...results, { card, remembered: dir === 'left' }];
 	}
 
-	function onDeckDone() {
-		stats = getStats(allCards);
+	async function onDeckDone() {
+		stats = await getStats(allCards);
 		screen = 'complete';
 	}
 
