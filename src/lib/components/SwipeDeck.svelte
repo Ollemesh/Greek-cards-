@@ -5,14 +5,16 @@
 	let {
 		cards,
 		onswipe,
-		ondone
+		ondone,
+		initialIndex = 0
 	}: {
 		cards: CardData[];
 		onswipe: (dir: SwipeDirection, card: CardData) => void;
 		ondone: () => void;
+		initialIndex?: number;
 	} = $props();
 
-	let index = $state(0);
+	let index = $state(initialIndex);
 	let flipped = $state(false);
 	let dragX = $state(0);
 	let dragY = $state(0);
