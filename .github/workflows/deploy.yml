@@ -32,6 +32,7 @@ jobs:
           # Set CARDS_URL variable in GitHub repo settings → Variables
           # Example: https://raw.githubusercontent.com/YOUR_USERNAME/greek-cards-data/main/cards.json
           PUBLIC_CARDS_URL: ${{ vars.CARDS_URL || '/cards.json' }}
+          PUBLIC_PUSH_WORKER_URL: ${{ vars.PUSH_WORKER_URL || 'https://greek-push-worker.ollemesh.workers.dev' }}
           # Set BASE_PATH if your repo is not at root (e.g. /greek-cards)
           BASE_PATH: ${{ vars.BASE_PATH || '' }}
         run: npm run build

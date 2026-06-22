@@ -6,6 +6,7 @@
 	import { loadCards, shuffled } from '$lib/cards';
 	import { getDueCards, recordReview, getStats, type Stats } from '$lib/progress';
 	import { saveSession, loadSession, clearSession } from '$lib/session';
+	import { setupPush, reportSessionDone } from '$lib/push';
 	import type { CardData, SessionResult, SwipeDirection } from '$lib/types';
 
 	const MAX_SESSION = 20;
@@ -40,6 +41,7 @@
 			}
 
 			stats = await getStats(allCards);
+			setupPush(); // не ждём, не блокируем загрузку
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Ошибка загрузки';
 		} finally {
@@ -68,6 +70,7 @@
 
 	async function onDeckDone() {
 		clearSession();
+		reportSessionDone(); // fire-and-forget
 		stats = await getStats(allCards);
 		screen = 'complete';
 	}
