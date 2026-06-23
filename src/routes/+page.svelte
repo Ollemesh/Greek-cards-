@@ -50,6 +50,7 @@
 	});
 
 	async function startSession() {
+		setupPush();
 		const due = await getDueCards(allCards);
 		sessionCards = shuffled(due).slice(0, MAX_SESSION);
 		results = [];
