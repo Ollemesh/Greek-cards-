@@ -27,16 +27,16 @@ export async function setupPush(): Promise<void> {
 	if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
 	if (Notification.permission === 'denied') return;
 
-	// Получаем публичный VAPID ключ
-	const res = await fetch(`${WORKER_URL}/vapid-public-key`).catch(() => null);
-	if (!res?.ok) return;
-	const { key } = (await res.json()) as { key: string };
-
-	// Запрашиваем разрешение (если ещё не дано)
+	// Запрашиваем разрешение первым — до любых await, пока iOS держит контекст жеста
 	if (Notification.permission !== 'granted') {
 		const perm = await Notification.requestPermission();
 		if (perm !== 'granted') return;
 	}
+
+	// Получаем публичный VAPID ключ
+	const res = await fetch(`${WORKER_URL}/vapid-public-key`).catch(() => null);
+	if (!res?.ok) return;
+	const { key } = (await res.json()) as { key: string };
 
 	// Подписываемся
 	const reg = await navigator.serviceWorker.ready;
